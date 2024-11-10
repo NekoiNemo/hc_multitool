@@ -1,5 +1,5 @@
 use std::env;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufReader, Read};
 
 use serde_json::{json, Map, Value};
@@ -22,7 +22,6 @@ fn main() {
         return;
     }
     let input_path = &args[1];
-    // let input_path = "savefile3.bin";
 
     println!("Reading file {input_path}");
 
@@ -51,7 +50,7 @@ fn main() {
 
     println!("Converted save successfully, saving to {output_path}");
 
-    std::fs::write(output_path, Value::Object(json_save).to_string()).expect("failed to write output file");
+    fs::write(output_path, Value::Object(json_save).to_string()).expect("failed to write output file");
 }
 
 fn read_value(reader: &mut BufReader<File>) -> Value {
@@ -63,8 +62,6 @@ fn read_value(reader: &mut BufReader<File>) -> Value {
 
     match buf4b {
         MARKER_BOOL => {
-            // println!("reading bool");
-
             reader
                 .read_exact(&mut buf4b)
                 .expect("failed to read bool value");
@@ -75,26 +72,18 @@ fn read_value(reader: &mut BufReader<File>) -> Value {
                 _ => panic!("unexpected bool value: {:02X?}", buf4b),
             };
 
-            // println!("got value: {value}");
-
             Value::Bool(value)
         }
         MARKER_INT => {
-            // println!("reading int");
-
             reader
                 .read_exact(&mut buf4b)
                 .expect("failed to read int value");
 
-            let value = u32::from_le_bytes(buf4b);
-
-            // println!("got value: {value}");
+            let value = i32::from_le_bytes(buf4b);
 
             Value::Number(value.into())
         }
         MARKER_UKN3 => {
-            // println!("encountered saveversion value, skipping next 4 bytes");
-
             reader
                 .read_exact(&mut buf4b)
                 .expect("failed to read next 4 bytes");
@@ -107,8 +96,6 @@ fn read_value(reader: &mut BufReader<File>) -> Value {
             Value::String(str)
         }
         MARKER_COORDS => {
-            // println!("reading coords");
-
             reader
                 .read_exact(&mut buf4b)
                 .expect("failed to read coord x value");
@@ -119,18 +106,10 @@ fn read_value(reader: &mut BufReader<File>) -> Value {
                 .expect("failed to read coord y value");
             let y = f32::from_le_bytes(buf4b);
 
-            // println!("got values x: {x}, y: {y}");
-
             json!({ "x": x, "y": y })
         }
-        MARKER_REF => {
-            // println!("encountered ref, skipping assuming no data");
-
-            Value::Null
-        }
+        MARKER_REF => Value::Null,
         MARKER_OBJECT => {
-            // println!("reading object");
-
             reader
                 .read_exact(&mut buf4b)
                 .expect("failed to read object length value");
@@ -142,18 +121,10 @@ fn read_value(reader: &mut BufReader<File>) -> Value {
 
             let len = u32::from_le_bytes(buf4b);
 
-            // println!("reading an object with {} fields", len);
-
             let mut fields = Map::with_capacity(len as usize);
 
             for _ in 0..len {
-                // println!("reading object field {}/{}", i + 1, len);
-
-                // println!("reading field name");
-
                 let name = read_string(reader, true);
-
-                // println!("reading field value");
 
                 let val = read_value(reader);
 
@@ -163,8 +134,6 @@ fn read_value(reader: &mut BufReader<File>) -> Value {
             Value::Object(fields)
         }
         MARKER_ARRAY => {
-            // println!("reading array");
-
             reader
                 .read_exact(&mut buf4b)
                 .expect("failed to read array length value");
@@ -176,13 +145,9 @@ fn read_value(reader: &mut BufReader<File>) -> Value {
 
             let len = u32::from_le_bytes(buf4b);
 
-            // println!("reading an array of {} elements", len);
-
             let mut values: Vec<Value> = Vec::with_capacity(len as usize);
 
             for _ in 0..len {
-                // println!("reading array elem {}/{}", i + 1, len);
-
                 let val = read_value(reader);
                 values.push(val);
             }
@@ -205,15 +170,12 @@ fn read_string(reader: &mut BufReader<File>, read_type: bool) -> String {
             panic!("expected to read string, got type: {:02X?}", buf4b)
         }
     }
-    // println!("reading string");
 
     reader
         .read_exact(&mut buf4b)
         .expect("failed to read string length value");
 
     let str_len = u32::from_le_bytes(buf4b);
-
-    // println!("string len: {str_len}");
 
     let mut str_bytes = vec![0; str_len as usize];
     reader
@@ -223,15 +185,11 @@ fn read_string(reader: &mut BufReader<File>, read_type: bool) -> String {
 
     let skip = (4 - str_len % 4) % 4;
 
-    // println!("string bytes to skip: {skip}");
-
     if skip != 0 {
         reader
             .read_exact(&mut vec![0; skip as usize])
             .expect("failed to skip string padding");
     }
-
-    // println!("got value: {str}");
 
     str
 }
